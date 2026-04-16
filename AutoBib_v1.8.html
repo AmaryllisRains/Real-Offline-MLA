@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AutoBib — Bibliography Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #1a1c20;
+    --paper: #edf0f5;
+    --cream: #406486;
+    --accent: #1a1c20;
+    --muted: #7c8188;
+    --border: #b0b6bc;
+    --success: #2d7a4f;
+    --sub-ink: #1a1c20;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'DM Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* Texture overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  header {
+    width: 100%;
+    max-width: 780px;
+    padding: 3rem 2rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .eyebrow {
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(2.8rem, 7vw, 4.5rem);
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+
+  .subtitle {
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-top: 0.5rem;
+    max-width: 420px;
+    line-height: 1.6;
+  }
+
+  /* Rule */
+  .rule {
+    width: 100%;
+    max-width: 780px;
+    height: 1px;
+    background: var(--border);
+    margin: 1.5rem 2rem;
+  }
+
+  main {
+    width: 100%;
+    max-width: 780px;
+    padding: 0 2rem 4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+  }
+
+  /* Source card */
+  .source-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    box-shadow: 3px 3px 0 var(--border);
+    animation: slideIn 0.25s ease;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .card-header {
+    background: var(--cream);
+    border-bottom: 1px solid var(--border);
+    padding: 0.9rem 1.4rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .card-label {
+    font-size: 0.68rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--sub-ink);
+  }
+
+  .remove-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--sub-ink);
+    font-size: 1.1rem;
+    line-height: 1;
+    transition: color 0.15s;
+    font-family: inherit;
+  }
+  .remove-btn:hover { color: var(--accent); }
+
+  .card-body {
+    padding: 1.4rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  @media (max-width: 550px) { .card-body { grid-template-columns: 1fr; } }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .field.full { grid-column: 1 / -1; }
+
+  label {
+    font-size: 0.63rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 500;
+  }
+
+  input, select {
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-radius: 1px;
+    padding: 0.55rem 0.7rem;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.82rem;
+    color: var(--ink);
+    width: 100%;
+    transition: border-color 0.15s, background 0.15s;
+    outline: none;
+  }
+
+  input:focus, select:focus {
+    border-color: var(--ink);
+    background: #fff;
+  }
+
+  input::placeholder { color: var(--border); }
+
+  /* Author rows */
+  .author-list {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .author-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 0.5rem;
+    align-items: end;
+  }
+
+  .author-row button {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    cursor: pointer;
+    padding: 0.5rem 0.6rem;
+    font-family: inherit;
+    font-size: 0.8rem;
+    transition: all 0.15s;
+    border-radius: 1px;
+  }
+  .author-row button:hover { border-color: var(--accent); color: var(--accent); }
+
+  .add-author-btn {
+    background: none;
+    border: 1px dashed var(--border);
+    color: var(--muted);
+    cursor: pointer;
+    padding: 0.45rem 0.8rem;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    transition: all 0.15s;
+    border-radius: 1px;
+    align-self: flex-start;
+    margin-top: 0.2rem;
+  }
+  .add-author-btn:hover { border-color: var(--ink); color: var(--ink); }
+
+  /* Editor / translator rows */
+  .editor-list {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .editor-list-label {
+    font-size: 0.63rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 500;
+    margin-bottom: 0.1rem;
+  }
+
+  .editor-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 7rem auto;
+    gap: 0.5rem;
+    align-items: end;
+  }
+
+  @media (max-width: 550px) {
+    .editor-row { grid-template-columns: 1fr 1fr; }
+    .editor-row .role-field { grid-column: 1 / -1; }
+    .editor-row .remove-editor-wrap { grid-column: 1 / -1; justify-self: start; }
+  }
+
+  .editor-row button {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    cursor: pointer;
+    padding: 0.5rem 0.6rem;
+    font-family: inherit;
+    font-size: 0.8rem;
+    transition: all 0.15s;
+    border-radius: 1px;
+  }
+  .editor-row button:hover { border-color: var(--accent); color: var(--accent); }
+
+  .add-editor-btn {
+    background: none;
+    border: 1px dashed var(--border);
+    color: var(--muted);
+    cursor: pointer;
+    padding: 0.45rem 0.8rem;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    transition: all 0.15s;
+    border-radius: 1px;
+    align-self: flex-start;
+    margin-top: 0.2rem;
+  }
+  .add-editor-btn:hover { border-color: var(--ink); color: var(--ink); }
+
+  /* Section divider inside card */
+  .card-section-divider {
+    grid-column: 1 / -1;
+    border: none;
+    border-top: 1px dashed var(--border);
+    margin: 0.4rem 0;
+  }
+
+  .checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    grid-column: 1 / -1;
+  }
+
+  .checkbox-row input[type="checkbox"] {
+    width: auto;
+    width: 14px;
+    height: 14px;
+    accent-color: var(--accent);
+  }
+
+  .checkbox-row label {
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 0.78rem;
+    color: var(--ink);
+    cursor: pointer;
+  }
+
+  /* Controls */
+  .controls {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    background: var(--ink);
+    color: var(--paper);
+    border: none;
+    padding: 0.8rem 1.5rem;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 1px;
+    transition: background 0.15s, transform 0.1s;
+  }
+  .btn:hover { background: var(--accent); }
+  .btn:active { transform: scale(0.98); }
+  .btn.secondary {
+    background: none;
+    color: var(--ink);
+    border: 1px solid var(--border);
+  }
+  .btn.secondary:hover { border-color: var(--ink); background: none; }
+
+  /* Output */
+  .output-section {
+    display: none;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .output-section.visible { display: flex; }
+
+  .output-label {
+    font-size: 0.65rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .output-box {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 1.4rem;
+    font-size: 0.82rem;
+    line-height: 1.9;
+    white-space: pre-wrap;
+    word-break: break-word;
+    box-shadow: 3px 3px 0 var(--border);
+    position: relative;
+  }
+
+  .bib-entry {
+    display: block;
+    padding: 0.5rem 0;
+    padding-left: 2.5em;
+    text-indent: -2.5em;
+    border-bottom: 1px dashed var(--border);
+  }
+  .bib-entry:last-child { border-bottom: none; }
+
+  em.italic { font-style: italic; }
+
+  .alpha-warning {
+    background: #fffbe6;
+    border: 1px solid #e8d48a;
+    border-left: 3px solid #c8a020;
+    border-radius: 1px;
+    padding: 0.6rem 1rem;
+    font-size: 0.75rem;
+    color: #7a5c00;
+    letter-spacing: 0.02em;
+  }
+
+  /* JSON import/export bar */
+  .json-bar {
+    display: flex;
+    gap: 0.8rem;
+    align-items: center;
+    flex-wrap: wrap;
+    padding: 0.9rem 1.4rem;
+    background: var(--cream);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    box-shadow: 3px 3px 0 var(--border);
+  }
+
+  .json-bar-label {
+    font-size: 0.63rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--sub-ink);
+    font-weight: 500;
+    flex: 1 1 100%;
+    margin-bottom: 0.2rem;
+  }
+
+  .json-import-feedback {
+    font-size: 0.72rem;
+    color: var(--success);
+    opacity: 0;
+    transition: opacity 0.3s;
+    flex: 1 1 auto;
+  }
+  .json-import-feedback.show { opacity: 1; }
+
+  .output-actions { display: flex; gap: 0.8rem; flex-wrap: wrap; }
+
+  .copied-toast {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--success);
+    color: #fff;
+    padding: 0.6rem 1.2rem;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    border-radius: 2px;
+    transition: transform 0.3s ease;
+    z-index: 1000;
+  }
+  .copied-toast.show { transform: translateX(-50%) translateY(0); }
+
+  footer {
+    width: 100%;
+    max-width: 780px;
+    padding: 0 2rem 2rem;
+    font-size: 0.65rem;
+    color: var(--border);
+    letter-spacing: 0.05em;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="eyebrow">MLA · Bibliography Tool</span>
+  <h1>AutoBib</h1>
+  <p class="subtitle">Build formatted bibliography entries one source at a time. Add all your sources, then generate and copy.</p>
+</header>
+
+<div class="rule"></div>
+
+<main>
+  <div id="sources-container"></div>
+
+  <!-- JSON import/export -->
+  <div class="json-bar">
+    <span class="json-bar-label">Save / Load Session</span>
+    <button class="btn secondary" onclick="exportJSON()">Export as .json</button>
+    <button class="btn secondary" onclick="document.getElementById('json-file-input').click()">Import from .json</button>
+    <input type="file" id="json-file-input" accept=".json" style="display:none" onchange="importJSON(event)">
+    <span class="json-import-feedback" id="json-feedback"></span>
+  </div>
+
+  <div class="controls">
+    <button class="btn" onclick="addSource()">+ Add Source</button>
+    <button class="btn secondary" onclick="generateBib()">Generate Bibliography</button>
+  </div>
+
+  <div class="output-section" id="output-section">
+    <span class="output-label">Generated Bibliography</span>
+    <div class="alpha-warning">⚠ Remember to alphabetize entries by the first author's last name before submitting.</div>
+    <div class="output-box" id="output-box"></div>
+    <div class="output-actions">
+      <button class="btn" onclick="copyBib()">Copy to Clipboard</button>
+      <button class="btn secondary" onclick="downloadBib()">Download .txt</button>
+    </div>
+  </div>
+</main>
+
+<footer>AutoBib — MLA format bibliography generator</footer>
+
+<div class="copied-toast" id="toast">Copied to clipboard!</div>
+
+<script>
+let sourceCount = 0;
+
+const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+function addSource() {
+  sourceCount++;
+  const id = sourceCount;
+  const container = document.getElementById('sources-container');
+  const card = document.createElement('div');
+  card.className = 'source-card';
+  card.id = `source-${id}`;
+  card.innerHTML = `
+    <div class="card-header">
+      <span class="card-label">Source ${id}</span>
+      <button class="remove-btn" onclick="removeSource(${id})" title="Remove source">×</button>
+    </div>
+    <div class="card-body">
+      <!-- Authors -->
+      <div class="author-list full" id="authors-${id}">
+        <label>Author(s)</label>
+        <div class="author-row" id="author-row-${id}-1">
+          <div class="field">
+            <label>Last name</label>
+            <input type="text" placeholder="Smith" id="auth-last-${id}-1">
+          </div>
+          <div class="field">
+            <label>First name</label>
+            <input type="text" placeholder="Jane" id="auth-first-${id}-1">
+          </div>
+          <div></div>
+        </div>
+        <button class="add-author-btn" onclick="addAuthor(${id})">+ Add another author</button>
+        <div class="checkbox-row" style="margin-top:0.2rem;">
+          <input type="checkbox" id="etal-${id}">
+          <label for="etal-${id}">Use <em>et al.</em> after first author (3+ authors)</label>
+        </div>
+      </div>
+
+      <!-- Title -->
+      <div class="field full">
+        <label>Article / Chapter / Source title</label>
+        <input type="text" placeholder="The Title of the Work" id="title-${id}">
+      </div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="quotes-${id}">
+        <label for="quotes-${id}">Wrap title in quotes (article/chapter) — uncheck to italicize (book/journal)</label>
+      </div>
+
+      <!-- Book / Container title -->
+      <hr class="card-section-divider">
+      <div class="field full">
+        <label>Book / Container title <span style="font-size:0.6rem;color:var(--muted);text-transform:none;letter-spacing:0;">(if source is a passage within a larger book)</span></label>
+        <input type="text" placeholder="Name of the Larger Book" id="booktitle-${id}">
+      </div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="book-quotes-${id}">
+        <label for="book-quotes-${id}">Wrap book title in quotes — uncheck to italicize (default for books)</label>
+      </div>
+
+      <!-- Editors / Translators -->
+      <hr class="card-section-divider">
+      <div class="editor-list full" id="editors-${id}">
+        <span class="editor-list-label">Editors / Translators <span style="font-size:0.6rem;color:var(--muted);text-transform:none;letter-spacing:0;">(optional)</span></span>
+        <button class="add-editor-btn" onclick="addEditor(${id})">+ Add editor or translator</button>
+      </div>
+      <hr class="card-section-divider">
+
+      <!-- Host -->
+      <div class="field full">
+        <label>Publication / Host</label>
+        <input type="text" placeholder="Journal of Something, JSTOR, etc." id="host-${id}">
+      </div>
+
+      <!-- Vol / No / Pages -->
+      <div class="field">
+        <label>Volume</label>
+        <input type="text" placeholder="12" id="vol-${id}">
+      </div>
+      <div class="field">
+        <label>Issue No.</label>
+        <input type="text" placeholder="3" id="num-${id}">
+      </div>
+      <div class="field">
+        <label>Pages</label>
+        <input type="text" placeholder="45–60" id="pages-${id}">
+      </div>
+      <div class="field">
+        <label>Publication date</label>
+        <input type="text" placeholder="2023" id="date-${id}">
+      </div>
+
+      <!-- URL -->
+      <div class="field full">
+        <label>URL / DOI (optional)</label>
+        <input type="text" placeholder="https://..." id="link-${id}">
+      </div>
+
+      <!-- Access date -->
+      <div class="field">
+        <label>Access day</label>
+        <input type="number" placeholder="15" min="1" max="31" id="acc-day-${id}">
+      </div>
+      <div class="field">
+        <label>Access month</label>
+        <select id="acc-month-${id}">
+          <option value="">— select —</option>
+          ${months.map((m,i) => `<option value="${m}">${m}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field">
+        <label>Access year</label>
+        <input type="number" placeholder="2024" id="acc-year-${id}">
+      </div>
+    </div>
+  `;
+  container.appendChild(card);
+  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+const authorCounts = {};
+
+function addAuthor(sourceId) {
+  if (!authorCounts[sourceId]) authorCounts[sourceId] = 1;
+  authorCounts[sourceId]++;
+  const n = authorCounts[sourceId];
+  const list = document.getElementById(`authors-${sourceId}`);
+  const addBtn = list.querySelector('.add-author-btn');
+  const row = document.createElement('div');
+  row.className = 'author-row';
+  row.id = `author-row-${sourceId}-${n}`;
+  row.innerHTML = `
+    <div class="field">
+      <label>Last name</label>
+      <input type="text" placeholder="Doe" id="auth-last-${sourceId}-${n}">
+    </div>
+    <div class="field">
+      <label>First name</label>
+      <input type="text" placeholder="John" id="auth-first-${sourceId}-${n}">
+    </div>
+    <button onclick="removeAuthor(${sourceId}, ${n})">×</button>
+  `;
+  list.insertBefore(row, addBtn);
+}
+
+function removeAuthor(sourceId, n) {
+  const row = document.getElementById(`author-row-${sourceId}-${n}`);
+  if (row) row.remove();
+}
+
+function removeSource(id) {
+  const card = document.getElementById(`source-${id}`);
+  if (card) card.remove();
+}
+
+const editorCounts = {};
+
+function addEditor(sourceId) {
+  if (!editorCounts[sourceId]) editorCounts[sourceId] = 0;
+  editorCounts[sourceId]++;
+  const n = editorCounts[sourceId];
+  const list = document.getElementById(`editors-${sourceId}`);
+  const addBtn = list.querySelector('.add-editor-btn');
+  const row = document.createElement('div');
+  row.className = 'editor-row';
+  row.id = `editor-row-${sourceId}-${n}`;
+  row.innerHTML = `
+    <div class="field">
+      <label>Last name</label>
+      <input type="text" placeholder="Jones" id="ed-last-${sourceId}-${n}">
+    </div>
+    <div class="field">
+      <label>First name</label>
+      <input type="text" placeholder="Anna" id="ed-first-${sourceId}-${n}">
+    </div>
+    <div class="field role-field">
+      <label>Role</label>
+      <select id="ed-role-${sourceId}-${n}">
+        <option value="editor">Editor</option>
+        <option value="translator">Translator</option>
+        <option value="editor-translator">Editor &amp; Translator</option>
+      </select>
+    </div>
+    <button class="remove-editor-wrap" onclick="removeEditor(${sourceId}, ${n})" title="Remove">×</button>
+  `;
+  list.insertBefore(row, addBtn);
+}
+
+function removeEditor(sourceId, n) {
+  const row = document.getElementById(`editor-row-${sourceId}-${n}`);
+  if (row) row.remove();
+}
+
+function val(id) {
+  const el = document.getElementById(id);
+  return el ? el.value.trim() : '';
+}
+
+function collectAllSources() {
+  const cards = document.querySelectorAll('.source-card');
+  const sources = [];
+  cards.forEach(card => {
+    const id = card.id.replace('source-', '');
+
+    const authorRows = card.querySelectorAll('.author-row');
+    const authors = [];
+    authorRows.forEach(row => {
+      const last = row.querySelector('input[id^="auth-last"]')?.value.trim() || '';
+      const first = row.querySelector('input[id^="auth-first"]')?.value.trim() || '';
+      if (last || first) authors.push({ last, first });
+    });
+
+    const editorRows = card.querySelectorAll('.editor-row');
+    const editors = [];
+    editorRows.forEach(row => {
+      const last = row.querySelector('input[id^="ed-last"]')?.value.trim() || '';
+      const first = row.querySelector('input[id^="ed-first"]')?.value.trim() || '';
+      const role = row.querySelector('select[id^="ed-role"]')?.value || 'editor';
+      if (last || first) editors.push({ last, first, role });
+    });
+
+    sources.push({
+      authors,
+      useEtAl:       document.getElementById(`etal-${id}`)?.checked || false,
+      title:         val(`title-${id}`),
+      useQuotes:     document.getElementById(`quotes-${id}`)?.checked || false,
+      bookTitle:     val(`booktitle-${id}`),
+      bookUseQuotes: document.getElementById(`book-quotes-${id}`)?.checked || false,
+      editors,
+      host:          val(`host-${id}`),
+      vol:           val(`vol-${id}`),
+      num:           val(`num-${id}`),
+      pages:         val(`pages-${id}`),
+      date:          val(`date-${id}`),
+      link:          val(`link-${id}`),
+      accDay:        val(`acc-day-${id}`),
+      accMonth:      val(`acc-month-${id}`),
+      accYear:       val(`acc-year-${id}`),
+    });
+  });
+  return sources;
+}
+
+function exportJSON() {
+  const sources = collectAllSources();
+  if (sources.length === 0) { alert('No sources to export!'); return; }
+  const blob = new Blob([JSON.stringify({ autobib: true, version: '1.5', sources }, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'bibliography.json';
+  a.click();
+}
+
+function importJSON(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.autobib || !Array.isArray(data.sources)) {
+        alert('This doesn\'t look like a valid AutoBib JSON file.');
+        return;
+      }
+      data.sources.forEach(s => loadSourceFromData(s));
+      const fb = document.getElementById('json-feedback');
+      fb.textContent = `✓ ${data.sources.length} source${data.sources.length === 1 ? '' : 's'} imported`;
+      fb.classList.add('show');
+      setTimeout(() => fb.classList.remove('show'), 3000);
+    } catch {
+      alert('Could not parse the JSON file. Make sure it was exported from AutoBib.');
+    }
+    event.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
+function loadSourceFromData(s) {
+  sourceCount++;
+  const id = sourceCount;
+  const container = document.getElementById('sources-container');
+  const card = document.createElement('div');
+  card.className = 'source-card';
+  card.id = `source-${id}`;
+
+  // Build month options with saved value pre-selected
+  const monthOpts = months.map(m =>
+    `<option value="${m}"${s.accMonth === m ? ' selected' : ''}>${m}</option>`
+  ).join('');
+
+  card.innerHTML = `
+    <div class="card-header">
+      <span class="card-label">Source ${id}</span>
+      <button class="remove-btn" onclick="removeSource(${id})" title="Remove source">×</button>
+    </div>
+    <div class="card-body">
+      <div class="author-list full" id="authors-${id}">
+        <label>Author(s)</label>
+        <div class="author-row" id="author-row-${id}-1">
+          <div class="field"><label>Last name</label><input type="text" placeholder="Smith" id="auth-last-${id}-1" value="${esc(s.authors[0]?.last || '')}"></div>
+          <div class="field"><label>First name</label><input type="text" placeholder="Jane" id="auth-first-${id}-1" value="${esc(s.authors[0]?.first || '')}"></div>
+          <div></div>
+        </div>
+        <button class="add-author-btn" onclick="addAuthor(${id})">+ Add another author</button>
+        <div class="checkbox-row" style="margin-top:0.2rem;">
+          <input type="checkbox" id="etal-${id}"${s.useEtAl ? ' checked' : ''}>
+          <label for="etal-${id}">Use <em>et al.</em> after first author (3+ authors)</label>
+        </div>
+      </div>
+
+      <div class="field full">
+        <label>Article / Chapter / Source title</label>
+        <input type="text" placeholder="The Title of the Work" id="title-${id}" value="${esc(s.title || '')}">
+      </div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="quotes-${id}"${s.useQuotes ? ' checked' : ''}>
+        <label for="quotes-${id}">Wrap title in quotes (article/chapter) — uncheck to italicize (book/journal)</label>
+      </div>
+
+      <hr class="card-section-divider">
+      <div class="field full">
+        <label>Book / Container title <span style="font-size:0.6rem;color:var(--muted);text-transform:none;letter-spacing:0;">(if source is a passage within a larger book)</span></label>
+        <input type="text" placeholder="Name of the Larger Book" id="booktitle-${id}" value="${esc(s.bookTitle || '')}">
+      </div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="book-quotes-${id}"${s.bookUseQuotes ? ' checked' : ''}>
+        <label for="book-quotes-${id}">Wrap book title in quotes — uncheck to italicize (default for books)</label>
+      </div>
+
+      <hr class="card-section-divider">
+      <div class="editor-list full" id="editors-${id}">
+        <span class="editor-list-label">Editors / Translators <span style="font-size:0.6rem;color:var(--muted);text-transform:none;letter-spacing:0;">(optional)</span></span>
+        <button class="add-editor-btn" onclick="addEditor(${id})">+ Add editor or translator</button>
+      </div>
+      <hr class="card-section-divider">
+
+      <div class="field full"><label>Publication / Host</label><input type="text" placeholder="Journal of Something, JSTOR, etc." id="host-${id}" value="${esc(s.host || '')}"></div>
+      <div class="field"><label>Volume</label><input type="text" placeholder="12" id="vol-${id}" value="${esc(s.vol || '')}"></div>
+      <div class="field"><label>Issue No.</label><input type="text" placeholder="3" id="num-${id}" value="${esc(s.num || '')}"></div>
+      <div class="field"><label>Pages</label><input type="text" placeholder="45–60" id="pages-${id}" value="${esc(s.pages || '')}"></div>
+      <div class="field"><label>Publication date</label><input type="text" placeholder="2023" id="date-${id}" value="${esc(s.date || '')}"></div>
+      <div class="field full"><label>URL / DOI (optional)</label><input type="text" placeholder="https://..." id="link-${id}" value="${esc(s.link || '')}"></div>
+      <div class="field"><label>Access day</label><input type="number" placeholder="15" min="1" max="31" id="acc-day-${id}" value="${esc(s.accDay || '')}"></div>
+      <div class="field">
+        <label>Access month</label>
+        <select id="acc-month-${id}">
+          <option value="">— select —</option>
+          ${monthOpts}
+        </select>
+      </div>
+      <div class="field"><label>Access year</label><input type="number" placeholder="2024" id="acc-year-${id}" value="${esc(s.accYear || '')}"></div>
+    </div>
+  `;
+  container.appendChild(card);
+
+  // Restore additional authors (index 1+)
+  if (s.authors && s.authors.length > 1) {
+    for (let i = 1; i < s.authors.length; i++) {
+      addAuthor(id);
+      const n = authorCounts[id];
+      const lastEl = document.getElementById(`auth-last-${id}-${n}`);
+      const firstEl = document.getElementById(`auth-first-${id}-${n}`);
+      if (lastEl) lastEl.value = s.authors[i].last || '';
+      if (firstEl) firstEl.value = s.authors[i].first || '';
+    }
+  }
+
+  // Restore editors/translators
+  if (s.editors && s.editors.length > 0) {
+    s.editors.forEach(ed => {
+      addEditor(id);
+      const n = editorCounts[id];
+      const lastEl = document.getElementById(`ed-last-${id}-${n}`);
+      const firstEl = document.getElementById(`ed-first-${id}-${n}`);
+      const roleEl = document.getElementById(`ed-role-${id}-${n}`);
+      if (lastEl) lastEl.value = ed.last || '';
+      if (firstEl) firstEl.value = ed.first || '';
+      if (roleEl) roleEl.value = ed.role || 'editor';
+    });
+  }
+
+  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// HTML-escape helper for injecting values into innerHTML
+function esc(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function generateBib() {
+  const cards = document.querySelectorAll('.source-card');
+  if (cards.length === 0) {
+    alert('Add at least one source first!');
+    return;
+  }
+
+  const entries = [];
+
+  cards.forEach(card => {
+    const id = card.id.replace('source-', '');
+
+    // Collect authors
+    const authorRows = card.querySelectorAll('.author-row');
+    const authors = [];
+    authorRows.forEach(row => {
+      const lastInput = row.querySelector('input[id^="auth-last"]');
+      const firstInput = row.querySelector('input[id^="auth-first"]');
+      if (lastInput && firstInput) {
+        const last = lastInput.value.trim();
+        const first = firstInput.value.trim();
+        if (last || first) authors.push({ last, first });
+      }
+    });
+
+    const title = val(`title-${id}`);
+    const useQuotes = document.getElementById(`quotes-${id}`)?.checked;
+    const bookTitle = val(`booktitle-${id}`);
+    const bookUseQuotes = document.getElementById(`book-quotes-${id}`)?.checked;
+    const host = val(`host-${id}`);
+    const vol = val(`vol-${id}`);
+    const num = val(`num-${id}`);
+    const pages = val(`pages-${id}`);
+    const date = val(`date-${id}`);
+    const link = val(`link-${id}`);
+    const accDay = val(`acc-day-${id}`);
+    const accMonth = val(`acc-month-${id}`);
+    const accYear = val(`acc-year-${id}`);
+
+    // Collect editors/translators
+    const editorRows = card.querySelectorAll('.editor-row');
+    const editors = [];
+    editorRows.forEach(row => {
+      const lastInput = row.querySelector('input[id^="ed-last"]');
+      const firstInput = row.querySelector('input[id^="ed-first"]');
+      const roleSelect = row.querySelector('select[id^="ed-role"]');
+      if (lastInput && firstInput) {
+        const last = lastInput.value.trim();
+        const first = firstInput.value.trim();
+        const role = roleSelect ? roleSelect.value : 'editor';
+        if (last || first) editors.push({ last, first, role });
+      }
+    });
+
+    // Build author string
+    const useEtAl = document.getElementById(`etal-${id}`)?.checked;
+    let authorStr = '';
+    if (authors.length === 0) {
+      authorStr = '';
+    } else if (useEtAl) {
+      authorStr = `${authors[0].last}, ${authors[0].first}, et al`;
+    } else if (authors.length === 1) {
+      authorStr = `${authors[0].last}, ${authors[0].first}`;
+    } else if (authors.length === 2) {
+      authorStr = `${authors[0].last}, ${authors[0].first}, and ${authors[1].first} ${authors[1].last}`;
+    } else {
+      authorStr = `${authors[0].last}, ${authors[0].first}`;
+      for (let i = 1; i < authors.length; i++) {
+        authorStr += `, ${authors[i].first} ${authors[i].last}`;
+      }
+    }
+
+    // Build title string (we'll mark italics with a special token)
+    let titleStr = '';
+    if (title) {
+      titleStr = useQuotes ? `"${title}."` : `_ITALIC_${title}_ITALIC_`;
+    }
+
+    // Build book/container title string
+    let bookTitleStr = '';
+    if (bookTitle) {
+      bookTitleStr = bookUseQuotes ? `"${bookTitle}."` : `_ITALIC_${bookTitle}_ITALIC_`;
+    }
+
+    // Build editors/translators string
+    // MLA format: "edited by First Last" or "translated by First Last, edited and translated by …"
+    let editorStr = '';
+    if (editors.length > 0) {
+      const roleLabels = { editor: 'edited by', translator: 'translated by', 'editor-translator': 'edited and translated by' };
+      // Group by role
+      const groups = {};
+      editors.forEach(e => {
+        if (!groups[e.role]) groups[e.role] = [];
+        groups[e.role].push(e);
+      });
+      const groupStrs = Object.entries(groups).map(([role, eds]) => {
+        const names = eds.map((e, i) => {
+          const full = [e.first, e.last].filter(Boolean).join(' ');
+          return full;
+        }).join(' and ');
+        return `${roleLabels[role] || role} ${names}`;
+      });
+      editorStr = groupStrs.join(', ');
+    }
+
+    // Compose entry
+    let parts = [];
+    if (authorStr) parts.push(`${authorStr}.`);
+    if (titleStr)  parts.push(useQuotes ? titleStr : `${titleStr}.`);
+    if (bookTitleStr) {
+      let bookPart = bookUseQuotes ? bookTitleStr : `${bookTitleStr}`;
+      if (editorStr) bookPart += `, ${editorStr}`;
+      parts.push(`${bookPart},`);
+    } else if (editorStr) {
+      parts.push(`${editorStr},`);
+    }
+    if (host)      parts.push(`_ITALIC_${host}_ITALIC_,`); 
+    if (vol)       parts.push(`vol. ${vol},`);
+    if (num)       parts.push(`no. ${num},`);
+    if (date)      parts.push(`${date},`);
+    if (pages)     parts.push(`pp. ${pages}.`);
+    if (link)      parts.push(`${link}.`);
+    const accParts = [accDay, accMonth, accYear].filter(Boolean);
+    if (accParts.length) parts.push(`Accessed ${accParts.join(' ')}.`);
+
+    entries.push(parts.join(' '));
+  });
+
+  const outputBox = document.getElementById('output-box');
+  outputBox.innerHTML = '';
+
+  entries.forEach(entry => {
+    const span = document.createElement('span');
+    span.className = 'bib-entry';
+    // Handle italic tokens — split on _ITALIC_ markers, every odd segment is italic
+    if (entry.includes('_ITALIC_')) {
+      const parts = entry.split('_ITALIC_');
+      parts.forEach((part, i) => {
+        if (i % 2 === 1) {
+          // italic segment
+          const em = document.createElement('em');
+          em.className = 'italic';
+          em.textContent = part;
+          span.appendChild(em);
+        } else if (part) {
+          span.appendChild(document.createTextNode(part));
+        }
+      });
+    } else {
+      span.textContent = entry;
+    }
+    outputBox.appendChild(span);
+  });
+
+  const section = document.getElementById('output-section');
+  section.classList.add('visible');
+  section.scrollIntoView({ behavior: 'smooth' });
+}
+
+function getPlainText() {
+  const entries = document.querySelectorAll('.bib-entry');
+  return Array.from(entries).map(e => e.textContent).join('\n\n');
+}
+
+function copyBib() {
+  navigator.clipboard.writeText(getPlainText()).then(() => {
+    const toast = document.getElementById('toast');
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2200);
+  });
+}
+
+function downloadBib() {
+  const text = getPlainText();
+  const blob = new Blob([text], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'bibliography.txt';
+  a.click();
+}
+
+// Start with one source open
+addSource();
+</script>
+</body>
+</html>
